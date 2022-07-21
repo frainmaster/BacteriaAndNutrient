@@ -16,8 +16,6 @@ IMG_DUMP = f'{OUTPUT_PATH}/img_dump'
 test_cnt = len([_ for _ in os.listdir(OUTPUT_PATH) if _.endswith('avi')])
 # OUTPUT_PATH = f'{OUTPUT_PATH}/test{test_cnt+1}'
 
-pandas_exist = False
-
 
 def get_random_pos(bac_pos=None) -> (int, int):
     """
@@ -156,13 +154,11 @@ class Bacteria:
 
 
 class Ecosystem:
-    system_map = [[0] * BOARD_SIZE for i in range(BOARD_SIZE)]
-    map_df = None
-
     def __init__(self):
         self.nutrients = []
         self.nutrients_pos = []
         self.bacterias = []
+        self.bacterias_pos = []
         self.bacteria_cnt = 0
         self.init_nutrients()
         self.init_bacterias()
@@ -174,8 +170,7 @@ class Ecosystem:
         while len(self.nutrients) < 3:
             new_nutrient = Nutrient(len(self.nutrients))
             n_pos = new_nutrient.pos
-            if not self.system_map[n_pos[0]][n_pos[1]]:
-                # self.system_map[n_pos[0]][n_pos[1]] = [0, new_nutrient]
+            if n_pos not in self.nutrients_pos and n_pos not in self.bacterias_pos:
                 self.nutrients_pos.append(n_pos)
                 self.nutrients.append(new_nutrient)
 
@@ -186,41 +181,11 @@ class Ecosystem:
     def create_bacteria(self, bac_pos=None):
         new_bacteria = Bacteria(self.bacteria_cnt, bac_pos)
         b_pos = new_bacteria.pos
-        if not self.system_map[b_pos[0]][b_pos[1]]:
+        if b_pos not in self.bacterias_pos and b_pos not in self.nutrients_pos:
             new_bacteria.find_closest_nutrient(self.nutrients)
-            self.system_map[b_pos[0]][b_pos[1]] = new_bacteria
+            self.bacterias_pos.append(b_pos)
             self.bacterias.append(new_bacteria)
             self.bacteria_cnt += 1
-
-    def print_map(self):
-        print("_" * (BOARD_SIZE + 2) * 2)
-        for row in self.system_map:
-            row_str = ''
-            for item in row:
-                if item == 0:
-                    row_str += "  "
-                elif isinstance(item, Bacteria):
-                    row_str += "+ "
-                elif isinstance(item, list):
-                    row_str += "# "
-            print("| " + row_str + "|")
-        print("-" * (BOARD_SIZE + 2) * 2)
-
-    def print_map_to_txt_file(self, move: int):
-        with open(f'{OUTPUT_PATH}/img{move}.txt', 'w') as f:
-            f.write("_" * (BOARD_SIZE + 2) * 2)
-            f.write("\n")
-            for row in self.system_map:
-                row_str = ''
-                for item in row:
-                    if item == 0:
-                        row_str += "  "
-                    elif isinstance(item, Bacteria):
-                        row_str += "+ "
-                    elif isinstance(item, list):
-                        row_str += "# "
-                f.write("| " + row_str + "|\n")
-            f.write("-" * (BOARD_SIZE + 2) * 2)
 
     def generate_matplotlib(self, m_count, vid_writer):
         x_pts, y_pts = [], []
@@ -269,13 +234,13 @@ class Ecosystem:
             return
         if not bacteria.is_alive:
             return
-        map_new_pos = self.system_map[new_pos[0]][new_pos[1]]
 
         # if the new position is not occupied in the map
-        if map_new_pos == 0:
-            # swap position i.e. bacteria moves to empty square
-            self.system_map[new_pos[0]][new_pos[1]], self.system_map[bacteria.pos[0]][bacteria.pos[1]] = \
-                self.system_map[bacteria.pos[0]][bacteria.pos[1]], self.system_map[new_pos[0]][new_pos[1]]
+        # if map_new_pos == 0:
+        if new_pos not in self.bacterias_pos:
+            # # swap position i.e. bacteria moves to empty square
+            self.bacterias_pos.remove(bacteria.pos)
+            self.bacterias_pos.append(new_pos)
             bacteria.accept_move(new_pos)
             # bacteria.find_closest_nutrient(self.nutrients)
             # if the new position is a nutrient
@@ -307,12 +272,8 @@ class Ecosystem:
             if not self.bacterias[b].is_alive:
                 b_pos = self.bacterias[b].pos
                 self.bacterias[b] = None
-                if isinstance(self.system_map[b_pos[0]][b_pos[1]], Bacteria):
-                    self.system_map[b_pos[0]][b_pos[1]] = 0
-                elif isinstance(self.system_map[b_pos[0]][b_pos[1]], int):
-                    pass
-                else:
-                    self.system_map[b_pos[0]][b_pos[1]][0] = 0
+                if b_pos in self.bacterias_pos:
+                    self.bacterias_pos.remove(b_pos)
         self.bacterias = [b for b in self.bacterias if b]
 
         for n in range(len(self.nutrients)):
@@ -320,7 +281,6 @@ class Ecosystem:
                 n_pos = self.nutrients[n].pos
                 self.nutrients[n] = None
                 self.nutrients_pos[n] = None
-                self.system_map[n_pos[0]][n_pos[1]] = 0
         self.nutrients = [n for n in self.nutrients if n]
         self.nutrients_pos = [n for n in self.nutrients_pos if n]
 
